@@ -39,7 +39,6 @@ public class Program
             "Chat.ReadBasic", // Read basic info about chats, needed for mentions
         };
 
-
         HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
         builder.Configuration
             .SetBasePath(AppContext.BaseDirectory)
@@ -78,21 +77,12 @@ public class Program
             configure.ClearProviders(); // Clear existing providers (like the default Console logger)
             configure.AddSerilog(Log.Logger); // Add Serilog as the logging provider
         });
-        //services.AddLogging(loggingBuilder => { loggingBuilder.AddSerilog(logger, true); });
-
-        //services.AddLogging(loggingBuilder =>
-        //{
-        //    loggingBuilder.AddConfiguration(configuration.GetSection("Logging"));
-        //    loggingBuilder.AddConsole();
-        //    // You can add other logging providers here, e.g., AddDebug(), AddEventSource()
-        //});
-
 
         // Configure Quartz.NET
         builder.Services.AddQuartz(q =>
         {
             // Use a custom JobFactory to allow dependency injection into jobs
-            q.UseMicrosoftDependencyInjectionJobFactory();
+            //q.UseMicrosoftDependencyInjectionJobFactory();
 
             // Register the job and bind it to a trigger
             var jobKey = new JobKey("graphMonitorJob");
