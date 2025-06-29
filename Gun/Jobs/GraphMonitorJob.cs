@@ -18,19 +18,11 @@ public class GraphMonitorJob : IJob
 
     public async Task Execute(IJobExecutionContext context)
     {
-        _logger.LogInformation("Running job.");
+        _logger.LogInformation("Starting Job.");
 
         try
         {
-            if (!_graphService.IsInitialized)
-            {
-                _logger.LogInformation("Graph service is not initilized. Running InitializeAsync.");
-                await _graphService.InitializeAsync();
-            }
-
-            _logger.LogInformation("Graph service is initilized. Running CheckForUpdatesAsync.");
             await _graphService.CheckForUpdatesAsync();
-
             _logger.LogInformation("Job completed.");
         }
         catch (Exception exception)

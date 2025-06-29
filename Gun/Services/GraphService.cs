@@ -57,7 +57,7 @@ public class GraphService : IGraphService
             _logger.LogError(exception, "An unexpected error occurred: {ExceptionMessage}.", exception.Message);
         }
 
-        Console.WriteLine("Application stopped.");
+        _logger.LogInformation("InitializeAsync completed. Current User ID: {CurrentUserId}, Principal Name: {CurrentUserPrincipalName}", _currentUserId, _currentUserPrincipalName);
     }
 
     public async Task CheckForUpdatesAsync()
@@ -67,7 +67,7 @@ public class GraphService : IGraphService
         // Ensure initialization has occurred
         if (_currentUserId == null || _currentUserPrincipalName == null)
         {
-            _logger.LogWarning("Service not fully initialized. Attempting initialization...");
+            _logger.LogInformation("Service not initialized. Attempting initialization...");
             await InitializeAsync();
             if (_currentUserId == null || _currentUserPrincipalName == null)
             {
@@ -80,7 +80,6 @@ public class GraphService : IGraphService
         {
             await CheckNewTeamsMessagesAsync(_currentUserId);
             await CheckNewCalendarEventsAsync(_currentUserPrincipalName);
-
             _logger.LogInformation("Update check complete.");
         }
         catch (Exception exception)
@@ -91,11 +90,7 @@ public class GraphService : IGraphService
 
     private async Task CheckNewTeamsMessagesAsync(string? currentUserId)
     {
-        if (currentUserId == null)
-        {
-            _logger.LogError("User ID not available. Cannot check messages.");
-            return;
-        }
+        ArgumentNullException.ThrowIfNull(currentUserId);
 
         _logger.LogInformation("Checking for new Teams messages...");
 
@@ -162,11 +157,7 @@ public class GraphService : IGraphService
 
     private async Task CheckNewCalendarEventsAsync(string? currentUserPrincipalName)
     {
-        if (currentUserPrincipalName == null)
-        {
-            _logger.LogError("Current user's principal name not available. Cannot check event invitations accurately.");
-            return;
-        }
+        ArgumentNullException.ThrowIfNull(currentUserPrincipalName);
 
         _logger.LogInformation("Checking for new calendar events...");
         try
