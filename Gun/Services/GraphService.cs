@@ -38,24 +38,23 @@ public class GraphService : IGraphService
             var user = await _graphServiceClient.Me.Request().GetAsync();
             _currentUserId = user.Id;
             _currentUserPrincipalName = user.UserPrincipalName; // Get the user's UPN
-            Console.WriteLine($"\nMonitoring messages and events for user: {user.DisplayName} ({_currentUserPrincipalName})");
-            Console.WriteLine($"User ID: {_currentUserId}");
+            _logger.LogInformation("Monitoring messages and events for user: {DisplayName} ({CurrentUserPrincipalName}).", user.DisplayName, _currentUserPrincipalName);
+            _logger.LogInformation("User ID: {CurrentUserId}.", _currentUserId);
 
             // Set initial check times to now minus a short buffer, or null if you want to check all from the beginning
             _lastMessageCheckTime = DateTime.UtcNow.AddMinutes(-5); // Check messages from the last 5 minutes initially
             _lastEventCheckTime = DateTime.UtcNow.AddMinutes(-5);   // Check events from the last 5 minutes initially
             IsInitialized = true;
         }
-        catch (ServiceException ex)
+        catch (ServiceException exception)
         {
-            Console.WriteLine($"Error calling Microsoft Graph: {ex.Message}");
-            Console.WriteLine($"Error Code: {ex.StatusCode}");
+            _logger.LogError(exception, "Error calling Microsoft Graph: {ExceptionMessage}. Error Code: {ExceptionStatusCode}", exception.Message, exception.StatusCode);
+            _logger.LogError(exception, "Please ensure your access token is valid and has the necessary permissions.");
             //Console.WriteLine($"Request ID: {ex.Error?.InnerError?.RequestId}");
-            Console.WriteLine("Please ensure your access token is valid and has the necessary permissions.");
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            Console.WriteLine($"An unexpected error occurred: {ex.Message}");
+            _logger.LogError(exception, "An unexpected error occurred: {ExceptionMessage}.", exception.Message);
         }
 
         Console.WriteLine("Application stopped.");
@@ -129,12 +128,14 @@ public class GraphService : IGraphService
 
                         if (isDirectMessage)
                         {
-                            Console.WriteLine($"New Direct Message in chat '{chat.Topic}' from {message.From?.User?.DisplayName}: {message.Body?.Content}");
+                            _logger.LogInformation("New Direct Message in chat '{ChatTopic}' from {MessageFromUserDisplayName}: {MessageBodyContent}",
+                                chat.Topic, message.From?.User?.DisplayName, message.Body?.Content);
                             newMessagesCount++;
                         }
                         else if (isMentioned)
                         {
-                            Console.WriteLine($"New Chat Message with Mention in chat '{chat.Topic}' from {message.From?.User?.DisplayName}: {message.Body?.Content}");
+                            _logger.LogInformation("New Chat Message with Mention in chat '{ChatTopic}' from {MessageFromUserDisplayName}: {MessageBodyContent}",
+                                chat.Topic, message.From?.User?.DisplayName, message.Body?.Content);
                             newMessagesCount++;
                         }
                     }
@@ -143,48 +144,42 @@ public class GraphService : IGraphService
 
             if (newMessagesCount > 0)
             {
-                Console.WriteLine($"Detected {newMessagesCount} new relevant message(s). Playing notification sound.");
+                _logger.LogInformation("Detected {NewMessagesCount} new relevant message(s). Playing notification sound.", newMessagesCount);
                 _soundService.PlaySound();
             }
             else
             {
-                Console.WriteLine("No new relevant Teams messages detected.");
+                _logger.LogInformation("No new relevant Teams messages detected.");
             }
 
             _lastMessageCheckTime = TimeProvider.System.GetUtcNow().DateTime; // Update last checked time after processing
         }
-        catch (ServiceException ex)
+        catch (ServiceException exception)
         {
-            Console.WriteLine($"Error checking Teams messages: {ex.Message}");
+            _logger.LogError(exception, "Error checking Teams messages: {ExceptionMessage}", exception.Message);
         }
     }
 
     private async Task CheckNewCalendarEventsAsync(string? currentUserPrincipalName)
     {
-        if (_currentUserPrincipalName == null)
+        if (currentUserPrincipalName == null)
         {
-            Console.WriteLine("Current user's principal name not available. Cannot check event invitations accurately.");
+            _logger.LogError("Current user's principal name not available. Cannot check event invitations accurately.");
             return;
         }
 
-        Console.WriteLine("Checking for new calendar events...");
+        _logger.LogInformation("Checking for new calendar events...");
         try
         {
-            if (currentUserPrincipalName == null)
-            {
-                Console.WriteLine("Current user's principal name not available. Cannot check event invitations accurately.");
-                return;
-            }
-
             // Get events for today. Time filter is crucial for efficiency.
             var startOfDay = DateTime.Today.ToUniversalTime();
             var endOfDay = DateTime.Today.AddDays(1).ToUniversalTime();
 
             var queryOptions = new List<QueryOption>()
-        {
-            new QueryOption("startDateTime", startOfDay.ToString("yyyy-MM-ddTHH:mm:ss")),
-            new QueryOption("endDateTime", endOfDay.ToString("yyyy-MM-ddTHH:mm:ss"))
-        };
+            {
+                new QueryOption("startDateTime", startOfDay.ToString("yyyy-MM-ddTHH:mm:ss")),
+                new QueryOption("endDateTime", endOfDay.ToString("yyyy-MM-ddTHH:mm:ss"))
+            };
 
             var events = await _graphServiceClient.Me.Calendar.Events.Request(queryOptions)
                 .OrderBy("createdDateTime desc") // Order to find recent events
@@ -192,19 +187,20 @@ public class GraphService : IGraphService
 
             var newEventsCount = 0;
 
-            foreach (var ev in events.CurrentPage)
+            foreach (var calendarEvent in events.CurrentPage)
             {
                 // Only process events created or last modified after the last check time
                 // And where the user's response is "none" (meaning they haven't responded to the invitation)
-                if (ev.CreatedDateTime > _lastEventCheckTime || ev.LastModifiedDateTime > _lastEventCheckTime)
+                if (calendarEvent.CreatedDateTime > _lastEventCheckTime || calendarEvent.LastModifiedDateTime > _lastEventCheckTime)
                 {
                     // Find if the current user is an attendee and their response status is 'None'
-                    var myAttendeeStatus = ev.Attendees?
+                    var myAttendeeStatus = calendarEvent.Attendees?
                         .FirstOrDefault(a => a.EmailAddress.Address.Equals(currentUserPrincipalName, StringComparison.OrdinalIgnoreCase));
 
                     if (myAttendeeStatus != null && myAttendeeStatus.Status.Response == ResponseType.None)
                     {
-                        Console.WriteLine($"New Event Invitation: '{ev.Subject}' from {ev.Organizer?.EmailAddress?.Name} at {ev.Start?.DateTime} (Status: {myAttendeeStatus.Status.Response})");
+                        _logger.LogInformation("New Event Invitation: '{EventSubject}' from {EventOrganizerName} at {EventStartTime} (Status: {AttendeeStatus})",
+                            calendarEvent.Subject, calendarEvent.Organizer?.EmailAddress?.Name, calendarEvent.Start?.DateTime, myAttendeeStatus.Status.Response);
                         newEventsCount++;
                     }
                 }
@@ -212,19 +208,19 @@ public class GraphService : IGraphService
 
             if (newEventsCount > 0)
             {
-                Console.WriteLine($"Detected {newEventsCount} new event invitation(s). Playing notification sound.");
+                _logger.LogInformation("Detected {NewEventsCount} new event invitation(s). Playing notification sound.", newEventsCount);
                 _soundService.PlaySound();
             }
             else
             {
-                Console.WriteLine("No new event invitations detected for today.");
+                _logger.LogInformation("No new event invitations detected for today.");
             }
 
             _lastEventCheckTime = TimeProvider.System.GetUtcNow().DateTime; // Update last checked time
         }
-        catch (ServiceException ex)
+        catch (ServiceException exception)
         {
-            Console.WriteLine($"Error checking calendar events: {ex.Message}");
+            _logger.LogError(exception, "Error checking calendar events: {ExceptionMessage}", exception.Message);
         }
     }
 }

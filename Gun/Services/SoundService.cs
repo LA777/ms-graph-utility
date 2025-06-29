@@ -36,6 +36,7 @@ public class SoundService : ISoundService
             if (OperatingSystem.IsWindows())
             {
                 using var player = new SoundPlayer(_soundOptions.NotificationSoundFileFullPath);
+                _logger.LogInformation("Playing sound!");
                 player.Play();
             }
             else
