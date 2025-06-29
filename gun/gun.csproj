@@ -9,6 +9,8 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<None Remove="appsettings.json" />
+		<None Remove="appsettings.Local.json" />
 		<None Remove="mixkit-happy-bells-notification-937.wav" />
 	</ItemGroup>
 
@@ -42,6 +44,15 @@
 		<PackageReference Include="System.Text.Json" Version="9.0.6" />
 		<PackageReference Include="System.Text.RegularExpressions" Version="4.3.1" />
 		<PackageReference Include="System.Windows.Extensions" Version="8.0.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Content Include="appsettings.json">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </Content>
+	  <Content Include="appsettings.Local.json">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </Content>
 	</ItemGroup>
 
 </Project>

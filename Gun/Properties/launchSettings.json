@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "Gun": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Local"
+      }
+    }
+  }
+}

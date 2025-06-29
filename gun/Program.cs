@@ -39,11 +39,12 @@ public class Program
             "Chat.ReadBasic", // Read basic info about chats, needed for mentions
         };
 
+        var hostEnvironment = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production";
         HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
         builder.Configuration
             .SetBasePath(AppContext.BaseDirectory)
             .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-            .AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: true)
+            .AddJsonFile($"appsettings.{hostEnvironment}.json", optional: true, reloadOnChange: true)
             .AddEnvironmentVariables()
             .AddCommandLine(args);
 
@@ -90,7 +91,7 @@ public class Program
 
             q.AddTrigger(opts => opts
                 .ForJob(jobKey)
-                .WithIdentity("graphMonitorTrigger")
+                .WithIdentity("graphMonitorJobTrigger")
                 .WithSimpleSchedule(x => x
                     .WithIntervalInMinutes(graphOptions.PollingIntervalInMinutes)
                     .RepeatForever())
