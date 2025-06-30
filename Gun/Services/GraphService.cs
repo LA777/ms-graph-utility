@@ -5,10 +5,6 @@ namespace Gun.Services;
 
 public interface IGraphService
 {
-    public bool IsInitialized { get; }
-
-    public Task InitializeAsync();
-
     public Task CheckForUpdatesAsync();
 }
 
@@ -21,7 +17,6 @@ public class GraphService : IGraphService
     private DateTime? _lastEventCheckTime = null;
     private string? _currentUserId = null;
     private string? _currentUserPrincipalName = null;
-    public bool IsInitialized { get; private set; } = false;
 
     public GraphService(ILogger<GraphService> logger, ISoundService soundService, GraphServiceClient graphServiceClient)
     {
@@ -30,7 +25,7 @@ public class GraphService : IGraphService
         _graphServiceClient = graphServiceClient ?? throw new ArgumentNullException(nameof(graphServiceClient));
     }
 
-    public async Task InitializeAsync()
+    private async Task InitializeAsync()
     {
         try
         {
@@ -44,7 +39,6 @@ public class GraphService : IGraphService
             // Set initial check times to now minus a short buffer, or null if you want to check all from the beginning
             _lastMessageCheckTime = DateTime.UtcNow.AddMinutes(-5); // Check messages from the last 5 minutes initially
             _lastEventCheckTime = DateTime.UtcNow.AddMinutes(-5);   // Check events from the last 5 minutes initially
-            IsInitialized = true;
         }
         catch (ServiceException exception)
         {
@@ -80,6 +74,7 @@ public class GraphService : IGraphService
         {
             await CheckNewTeamsMessagesAsync(_currentUserId);
             await CheckNewCalendarEventsAsync(_currentUserPrincipalName);
+
             _logger.LogInformation("Update check complete.");
         }
         catch (Exception exception)

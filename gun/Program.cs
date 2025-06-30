@@ -67,7 +67,7 @@ public class Program
             .MinimumLevel.Verbose()
             .Enrich.WithProperty("Version", version)
             .WriteTo.Console(LogEventLevel.Information, "{Timestamp:yyyy-MM-dd HH:mm:ss} | {Message:lj}{NewLine}{Exception}")
-            .WriteTo.File(Path.Combine(AppContext.BaseDirectory, "\"logs/gun-.log\""), rollingInterval: RollingInterval.Day)
+            .WriteTo.File(Path.Combine(AppContext.BaseDirectory, "logs/gun-.log"), rollingInterval: RollingInterval.Day)
             .CreateLogger();
 
         // Configure Logging with Serilog:
