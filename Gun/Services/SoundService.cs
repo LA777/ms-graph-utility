@@ -13,20 +13,20 @@ public interface ISoundService
 
 public class SoundService : ISoundService
 {
-    private readonly SoundOptions _soundOptions;
+    private readonly IOptionsMonitor<SoundOptions> _soundOptionsDelegate;
     private readonly ILogger<SoundService> _logger;
 
-    public SoundService(IOptions<SoundOptions> soundOptions, ILogger<SoundService> logger)
+    public SoundService(IOptionsMonitor<SoundOptions> soundOptionsDelegate, ILogger<SoundService> logger)
     {
-        _soundOptions = soundOptions?.Value ?? throw new ArgumentNullException(nameof(soundOptions));
+        _soundOptionsDelegate = soundOptionsDelegate ?? throw new ArgumentNullException(nameof(soundOptionsDelegate));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public void PlaySound()
     {
-        if (!File.Exists(_soundOptions.NotificationSoundFileFullPath))
+        if (!File.Exists(_soundOptionsDelegate.CurrentValue.NotificationSoundFileFullPath))
         {
-            _logger.LogError("Notification sound file not found at: {NotificationSoundFileFullPath}", _soundOptions.NotificationSoundFileFullPath);
+            _logger.LogError("Notification sound file not found at: {NotificationSoundFileFullPath}", _soundOptionsDelegate.CurrentValue.NotificationSoundFileFullPath);
             return;
         }
 
@@ -35,7 +35,7 @@ public class SoundService : ISoundService
             // For cross-platform support or .mp3, you'd need libraries like NAudio or platform-specific commands.
             if (OperatingSystem.IsWindows())
             {
-                using var player = new SoundPlayer(_soundOptions.NotificationSoundFileFullPath);
+                using var player = new SoundPlayer(_soundOptionsDelegate.CurrentValue.NotificationSoundFileFullPath);
                 _logger.LogInformation("Playing sound!");
                 player.Play();
             }
@@ -51,12 +51,12 @@ public class SoundService : ISoundService
                 if (OperatingSystem.IsMacOS())
                 {
                     command = "afplay";
-                    args = $"\"{_soundOptions.NotificationSoundFileFullPath}\"";
+                    args = $"\"{_soundOptionsDelegate.CurrentValue.NotificationSoundFileFullPath}\"";
                 }
                 else if (OperatingSystem.IsLinux())
                 {
                     command = "aplay";
-                    args = $"\"{_soundOptions.NotificationSoundFileFullPath}\"";
+                    args = $"\"{_soundOptionsDelegate.CurrentValue.NotificationSoundFileFullPath}\"";
                 }
                 else
                 {

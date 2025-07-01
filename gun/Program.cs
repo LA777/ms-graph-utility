@@ -1,4 +1,5 @@
-﻿using Gun.Jobs;
+﻿using Gun.Clients;
+using Gun.Jobs;
 using Gun.Options;
 using Gun.Services;
 using Microsoft.Extensions.Configuration;
@@ -6,9 +7,12 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Graph;
+using Polly;
+using Polly.Extensions.Http;
 using Quartz;
 using Serilog;
 using Serilog.Events;
+using System.Net.Http.Headers;
 using System.Reflection;
 using System.Text;
 
@@ -56,8 +60,13 @@ public class Program
     private static void ConfigureServices(HostApplicationBuilder builder)
     {
         builder.Services.AddOptions<SoundOptions>().Bind(builder.Configuration.GetSection(nameof(SoundOptions)));
+
         var graphOptions = builder.Configuration.GetSection(nameof(GraphOptions)).Get<GraphOptions>();
         ArgumentNullException.ThrowIfNull(graphOptions);
+
+        builder.Services.AddOptions<LoginClientOptions>().Bind(builder.Configuration.GetSection(nameof(LoginClientOptions)));
+        var loginClientOptions = builder.Configuration.GetSection(nameof(LoginClientOptions)).Get<LoginClientOptions>();
+        ArgumentNullException.ThrowIfNull(loginClientOptions);
 
         var version = Assembly.GetExecutingAssembly().GetName().Version;
         Log.Logger = new LoggerConfiguration()
@@ -104,11 +113,41 @@ public class Program
         builder.Services.AddSingleton<ISoundService, SoundService>();
         builder.Services.AddSingleton<IGraphService, GraphService>();
 
+        var retryPolicy = HttpPolicyExtensions
+            .HandleTransientHttpError()
+            .OrResult(msg => msg.StatusCode == System.Net.HttpStatusCode.NotFound)
+            .WaitAndRetryAsync(loginClientOptions.RetryAttempts, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
+            onRetry: (outcome, timespan, retryAttempt, context) =>
+            {
+                builder.Services.BuildServiceProvider().GetRequiredService<ILogger<LoginClient>>()
+                .LogWarning("Delaying for {TotalMilliseconds}ms, then making retry {RetryAttempt}.", timespan.TotalMilliseconds, retryAttempt);
+            });
+
+
+        builder.Services.AddHttpClient<ILoginClient, LoginClient>("LoginClient", client =>
+        {
+            //client.DefaultRequestHeaders.Add("Accept", "application/json");
+        })
+            .ConfigureHttpClient(c =>
+            {
+                c.BaseAddress = new Uri(loginClientOptions.LoginBaseUrl);
+                c.DefaultRequestHeaders.Add("Origin", loginClientOptions.Origin);
+            })
+            .AddPolicyHandler(retryPolicy);
+
+        //builder.Services.AddScoped<LoginClient>(sp =>
+        //{
+        //    var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+        //    var httpClient = httpClientFactory.CreateClient("LoginClient");
+        //    return new LoginClient(httpClient);
+        //});
+        // LoginClient
+
         builder.Services.AddSingleton<GraphServiceClient>(sp =>
         {
             var graphClient = new GraphServiceClient(new DelegateAuthenticationProvider(async (requestMessage) =>
             {
-                requestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", graphOptions.AccessToken);
+                //requestMessage.Headers.Authorization = new AuthenticationHeaderValue("Bearer", graphOptions.AccessToken);
             }));
 
             return graphClient;

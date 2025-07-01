@@ -27,8 +27,8 @@ public class SoundServiceTests
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
         // Arrange
-        var mockSoundOptions = new Mock<IOptions<SoundOptions>>();
-        mockSoundOptions.Setup(o => o.Value).Returns(new SoundOptions());
+        var mockSoundOptions = new Mock<IOptionsMonitor<SoundOptions>>();
+        mockSoundOptions.Setup(o => o.CurrentValue).Returns(new SoundOptions());
 
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() => new SoundService(mockSoundOptions.Object, null));
@@ -38,8 +38,8 @@ public class SoundServiceTests
     public void PlaySound_FileExists_Windows_DoesNotLogError()
     {
         // Arrange
-        var mockSoundOptions = new Mock<IOptions<SoundOptions>>();
-        mockSoundOptions.Setup(o => o.Value).Returns(new SoundOptions { NotificationSoundFileFullPath = "mixkit-happy-bells-notification-937.wav" });
+        var mockSoundOptions = new Mock<IOptionsMonitor<SoundOptions>>();
+        mockSoundOptions.Setup(o => o.CurrentValue).Returns(new SoundOptions { NotificationSoundFileFullPath = "mixkit-happy-bells-notification-937.wav" });
         var logger = new LoggerConfiguration().WriteTo.InMemory(restrictedToMinimumLevel: LogEventLevel.Error).CreateLogger();
         ILogger<SoundService> msLogger = new SerilogLoggerFactory(logger).CreateLogger<SoundService>();
         var service = new SoundService(mockSoundOptions.Object, msLogger);
@@ -55,8 +55,8 @@ public class SoundServiceTests
     public void PlaySound_FileDoesNotExist_LogsError()
     {
         // Arrange
-        var mockSoundOptions = new Mock<IOptions<SoundOptions>>();
-        mockSoundOptions.Setup(o => o.Value).Returns(new SoundOptions { NotificationSoundFileFullPath = "non_existent_sound.wav" });
+        var mockSoundOptions = new Mock<IOptionsMonitor<SoundOptions>>();
+        mockSoundOptions.Setup(o => o.CurrentValue).Returns(new SoundOptions { NotificationSoundFileFullPath = "non_existent_sound.wav" });
         var logger = new LoggerConfiguration().WriteTo.InMemory().CreateLogger();
         ILogger<SoundService> msLogger = new SerilogLoggerFactory(logger).CreateLogger<SoundService>();
         var service = new SoundService(mockSoundOptions.Object, msLogger);
@@ -74,8 +74,8 @@ public class SoundServiceTests
     public void PlaySound_EmptyPath_LogsError()
     {
         // Arrange
-        var mockSoundOptions = new Mock<IOptions<SoundOptions>>();
-        mockSoundOptions.Setup(o => o.Value)
+        var mockSoundOptions = new Mock<IOptionsMonitor<SoundOptions>>();
+        mockSoundOptions.Setup(o => o.CurrentValue)
             .Returns(new SoundOptions { NotificationSoundFileFullPath = "" })
             .Verifiable();
         var logger = new LoggerConfiguration().WriteTo.InMemory().CreateLogger();

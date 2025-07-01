@@ -1,5 +1,8 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Gun.Clients;
+using Gun.Models.Responses;
+using Microsoft.Extensions.Logging;
 using Microsoft.Graph;
+using System.Net.Http.Headers;
 
 namespace Gun.Services;
 
@@ -13,22 +16,26 @@ public class GraphService : IGraphService
     private readonly ILogger<GraphService> _logger;
     private readonly ISoundService _soundService;
     private readonly GraphServiceClient _graphServiceClient;
-    private DateTime? _lastMessageCheckTime = null;
-    private DateTime? _lastEventCheckTime = null;
-    private string? _currentUserId = null;
-    private string? _currentUserPrincipalName = null;
+    private readonly ILoginClient _loginClient;
+    private DateTime? _lastMessageCheckTime;
+    private DateTime? _lastEventCheckTime;
+    private string? _currentUserId;
+    private string? _currentUserPrincipalName;
+    private LoginTokenResponse _tokenResponse;
 
-    public GraphService(ILogger<GraphService> logger, ISoundService soundService, GraphServiceClient graphServiceClient)
+    public GraphService(ILogger<GraphService> logger, ISoundService soundService, GraphServiceClient graphServiceClient, ILoginClient loginClient)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _soundService = soundService ?? throw new ArgumentNullException(nameof(soundService));
         _graphServiceClient = graphServiceClient ?? throw new ArgumentNullException(nameof(graphServiceClient));
+        _loginClient = loginClient ?? throw new ArgumentNullException(nameof(loginClient));
     }
 
     private async Task InitializeAsync()
     {
         try
         {
+            await InitiateTokenAsync();
             // Get the current user's ID and Principal Name
             var user = await _graphServiceClient.Me.Request().GetAsync();
             _currentUserId = user.Id;
@@ -42,7 +49,7 @@ public class GraphService : IGraphService
         }
         catch (ServiceException exception)
         {
-            _logger.LogError(exception, "Error calling Microsoft Graph: {ExceptionMessage}. Error Code: {ExceptionStatusCode}", exception.Message, exception.StatusCode);
+            _logger.LogError(exception, "Error calling Graph: {ExceptionMessage}. Error Code: {ExceptionStatusCode}", exception.Message, exception.StatusCode);
             _logger.LogError(exception, "Please ensure your access token is valid and has the necessary permissions.");
             //Console.WriteLine($"Request ID: {ex.Error?.InnerError?.RequestId}");
         }
@@ -52,6 +59,26 @@ public class GraphService : IGraphService
         }
 
         _logger.LogInformation("InitializeAsync completed. Current User ID: {CurrentUserId}, Principal Name: {CurrentUserPrincipalName}", _currentUserId, _currentUserPrincipalName);
+    }
+
+    private async Task InitiateTokenAsync()
+    {
+        _logger.LogInformation("Initiating token retrieval for Graph API...");
+        // Attempt to get a new access token using the login client
+        var tokenResponse = await _loginClient.GetTokenAsync(_tokenResponse?.RefreshToken);
+        if (tokenResponse == null || string.IsNullOrEmpty(tokenResponse.AccessToken))
+        {
+            _logger.LogError("Failed to retrieve access token. Please check your login credentials and permissions.");
+            return;
+        }
+
+        // Set the access token in the GraphServiceClient
+        _tokenResponse = tokenResponse;
+        _graphServiceClient.AuthenticationProvider = new DelegateAuthenticationProvider(async requestMessage =>
+        {
+            requestMessage.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenResponse.AccessToken);
+        });
+        _logger.LogInformation("Access token successfully retrieved and set for Graph API.");
     }
 
     public async Task CheckForUpdatesAsync()
@@ -73,7 +100,7 @@ public class GraphService : IGraphService
         try
         {
             await CheckNewTeamsMessagesAsync(_currentUserId);
-            await CheckNewCalendarEventsAsync(_currentUserPrincipalName);
+            //await CheckNewCalendarEventsAsync(_currentUserPrincipalName);
 
             _logger.LogInformation("Update check complete.");
         }
@@ -91,6 +118,18 @@ public class GraphService : IGraphService
 
         try
         {
+            // TODO LA - Check if Token is still valid before making requests
+            if (_tokenResponse == null || string.IsNullOrEmpty(_tokenResponse.AccessToken))
+            {
+                _logger.LogError("Access token is not available. Attempting to re-initiate token retrieval.");
+                await InitiateTokenAsync();
+                if (_tokenResponse == null || string.IsNullOrEmpty(_tokenResponse.AccessToken))
+                {
+                    _logger.LogError("Failed to retrieve access token after re-initialization. Skipping Teams message check.");
+                    return;
+                }
+            }
+
             // Get all chats the user is a member of
             // We expand members to check if it's a 1-on-1 chat and if the other member exists.
             // We select a reasonable number of recent messages for each chat, filtering by timestamp.
@@ -146,6 +185,15 @@ public class GraphService : IGraphService
         }
         catch (ServiceException exception)
         {
+            // TODO LA: Handle Unauthorize exception and re-initiate token retrieval if needed.
+            if (exception.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                _logger.LogWarning("Unauthorized access while checking Teams messages. Attempting to re-initiate token retrieval.");
+                await InitiateTokenAsync();
+                // Retry the check after re-initializing the token
+                await CheckNewTeamsMessagesAsync(currentUserId);
+                return; // Exit the method after retrying
+            }
             _logger.LogError(exception, "Error checking Teams messages: {ExceptionMessage}", exception.Message);
         }
     }
