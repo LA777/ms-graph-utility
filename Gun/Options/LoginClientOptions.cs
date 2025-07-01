@@ -19,5 +19,4 @@ public class LoginClientOptions
     public string Claims { get; set; } = string.Empty;
     public string XAnchorMailbox { get; set; } = string.Empty;
     public string Origin { get; set; } = string.Empty;
-
 }

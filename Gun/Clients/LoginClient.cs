@@ -1,11 +1,9 @@
 ﻿using Gun.Models.Responses;
 using Gun.Options;
 using Microsoft.Extensions.Options;
-using System.Reflection;
 using System.Text.Json;
 
 namespace Gun.Clients;
-
 
 public interface ILoginClient
 {
@@ -22,7 +20,6 @@ public class LoginClient : ILoginClient
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _loginClientOptionsDelegate = loginClientOptionsDelegate ?? throw new ArgumentNullException(nameof(loginClientOptionsDelegate));
     }
-
 
     public async Task<LoginTokenResponse?> GetTokenAsync(string? refreshToken)
     {
